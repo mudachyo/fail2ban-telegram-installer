@@ -30,22 +30,6 @@ bash <(wget -qO- https://github.com/mudachyo/fail2ban-telegram-installer/raw/ref
 
 ---
 
-## Что делает скрипт?
-
-| Шаг | Действие |
-|-----|----------|
-| 1 | Проверяет, что система — Ubuntu |
-| 2 | Запрашивает имя сервера (по умолчанию — `hostname` или своё) |
-| 3 | Устанавливает Fail2Ban (`apt update && apt install fail2ban`) |
-| 4 | Копирует `/etc/fail2ban/jail.conf` → `/etc/fail2ban/jail.local` |
-| 5 | Настраивает `jail.local` — секции `[sshd]` и `[recidive]` с action `telegram` |
-| 6 | Запрашивает **Telegram Bot Token** и **Chat ID** |
-| 7 | Создаёт `/usr/local/bin/fail2ban-telegram.sh` — скрипт отправки уведомлений |
-| 8 | Создаёт `/etc/fail2ban/action.d/telegram.conf` — action для Fail2Ban |
-| 9 | Перезапускает Fail2Ban |
-
----
-
 ## Как получить Telegram Bot Token и Chat ID
 
 ### 1. Создайте бота
