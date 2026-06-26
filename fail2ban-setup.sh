@@ -45,6 +45,8 @@ echo ""
 echo -e "${YELLOW}[2/10] Checking if Fail2Ban is already installed...${NC}"
 
 NEED_RESTORE=false
+SAVED_TOKEN=""
+SAVED_CHAT_ID=""
 
 if command -v fail2ban-client &> /dev/null; then
     echo -e "${GREEN}✓ Fail2Ban is already installed${NC}"
@@ -77,6 +79,20 @@ if command -v fail2ban-client &> /dev/null; then
         # Stop fail2ban
         echo -e "${YELLOW}→ Stopping Fail2Ban service...${NC}"
         sudo systemctl stop fail2ban 2>/dev/null || true
+
+        # Save existing Telegram token and chat ID before deleting
+        if [ -f /usr/local/bin/fail2ban-telegram.sh ]; then
+            echo -e "${YELLOW}→ Saving existing Telegram credentials...${NC}"
+            SAVED_TOKEN=$(sudo grep '^TOKEN=' /usr/local/bin/fail2ban-telegram.sh | cut -d'"' -f2) || true
+            SAVED_CHAT_ID=$(sudo grep '^CHAT_ID=' /usr/local/bin/fail2ban-telegram.sh | cut -d'"' -f2) || true
+            if [ -n "$SAVED_TOKEN" ] && [ -n "$SAVED_CHAT_ID" ]; then
+                echo -e "${GREEN}✓ Existing Telegram credentials saved${NC}"
+            else
+                echo -e "${YELLOW}⚠ Could not extract Telegram credentials from existing script${NC}"
+                SAVED_TOKEN=""
+                SAVED_CHAT_ID=""
+            fi
+        fi
 
         # Remove custom notification files first (before package removal)
         echo -e "${YELLOW}→ Removing custom notification files...${NC}"
@@ -194,13 +210,24 @@ echo ""
 # -------------------------------------------
 echo -e "${YELLOW}[7/10] Telegram bot configuration...${NC}"
 
-read -p "Enter Telegram Bot TOKEN: " TELEGRAM_TOKEN
+# If saved credentials exist from a reinstall, use them as defaults
+if [ -n "$SAVED_TOKEN" ]; then
+    read -p "Enter Telegram Bot TOKEN [$SAVED_TOKEN]: " TELEGRAM_TOKEN
+    TELEGRAM_TOKEN="${TELEGRAM_TOKEN:-$SAVED_TOKEN}"
+else
+    read -p "Enter Telegram Bot TOKEN: " TELEGRAM_TOKEN
+fi
 while [ -z "$TELEGRAM_TOKEN" ]; do
     echo -e "${RED}Token cannot be empty.${NC}"
     read -p "Enter Telegram Bot TOKEN: " TELEGRAM_TOKEN
 done
 
-read -p "Enter Telegram CHAT_ID: " TELEGRAM_CHAT_ID
+if [ -n "$SAVED_CHAT_ID" ]; then
+    read -p "Enter Telegram CHAT_ID [$SAVED_CHAT_ID]: " TELEGRAM_CHAT_ID
+    TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-$SAVED_CHAT_ID}"
+else
+    read -p "Enter Telegram CHAT_ID: " TELEGRAM_CHAT_ID
+fi
 while [ -z "$TELEGRAM_CHAT_ID" ]; do
     echo -e "${RED}CHAT_ID cannot be empty.${NC}"
     read -p "Enter Telegram CHAT_ID: " TELEGRAM_CHAT_ID
