@@ -78,14 +78,15 @@ if command -v fail2ban-client &> /dev/null; then
         echo -e "${YELLOW}→ Stopping Fail2Ban service...${NC}"
         sudo systemctl stop fail2ban 2>/dev/null || true
 
-        # Remove fail2ban
-        echo -e "${YELLOW}→ Removing existing Fail2Ban installation...${NC}"
-        sudo apt remove --purge -y fail2ban
-
-        # Remove custom files
+        # Remove custom notification files first (before package removal)
         echo -e "${YELLOW}→ Removing custom notification files...${NC}"
         sudo rm -f /usr/local/bin/fail2ban-telegram.sh
         sudo rm -f /etc/fail2ban/action.d/telegram.conf
+
+        # Remove fail2ban
+        echo -e "${YELLOW}→ Removing existing Fail2Ban installation...${NC}"
+        sudo apt remove --purge -y fail2ban
+        sudo apt autoremove -y
 
         echo -e "${GREEN}✓ Old installation removed. Proceeding with fresh install...${NC}"
         NEED_RESTORE=true
