@@ -94,10 +94,12 @@ if command -v fail2ban-client &> /dev/null; then
             fi
         fi
 
-        # Remove custom notification files first (before package removal)
-        echo -e "${YELLOW}→ Removing custom notification files...${NC}"
+        # Remove custom files created by this script (before package removal)
+        echo -e "${YELLOW}→ Removing custom Fail2Ban files...${NC}"
         sudo rm -f /usr/local/bin/fail2ban-telegram.sh
         sudo rm -f /etc/fail2ban/action.d/telegram.conf
+        sudo rm -f /etc/fail2ban/jail.local
+        sudo rm -f /etc/fail2ban/jail.local.backup.*
 
         # Remove fail2ban
         echo -e "${YELLOW}→ Removing existing Fail2Ban installation...${NC}"
