@@ -22,7 +22,7 @@ echo ""
 # -------------------------------------------
 # Step 1: Check if system is Ubuntu
 # -------------------------------------------
-echo -e "${YELLOW}[1/8] Checking system...${NC}"
+echo -e "${YELLOW}[1/10] Checking system...${NC}"
 
 if [ ! -f /etc/os-release ]; then
     echo -e "${RED}✗ Cannot detect operating system. /etc/os-release not found.${NC}"
@@ -40,9 +40,68 @@ echo -e "${GREEN}✓ Ubuntu detected ($VERSION_ID)${NC}"
 echo ""
 
 # -------------------------------------------
-# Step 2: Configure server name (hostname or custom)
+# Step 2: Check if Fail2Ban is already installed
 # -------------------------------------------
-echo -e "${YELLOW}[2/8] Server name configuration...${NC}"
+echo -e "${YELLOW}[2/10] Checking if Fail2Ban is already installed...${NC}"
+
+NEED_RESTORE=false
+
+if command -v fail2ban-client &> /dev/null; then
+    echo -e "${GREEN}✓ Fail2Ban is already installed${NC}"
+    echo ""
+    echo -e "${YELLOW}Fail2Ban is already installed on this system.${NC}"
+    read -p "Do you want to reinstall it with Telegram notifications? [y/N]: " REINSTALL
+
+    if [[ "$REINSTALL" =~ ^[Yy] ]]; then
+        echo ""
+        echo -e "${YELLOW}→ Backing up banned IPs...${NC}"
+
+        # Backup banned IPs
+        if sudo systemctl is-active --quiet fail2ban 2>/dev/null; then
+            for jail in $(sudo fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:\s*//p' | tr ',' ' '); do
+                echo "[$jail]"
+                sudo fail2ban-client status "$jail" 2>/dev/null | sed -n 's/.*Banned IP list:\s*//p'
+            done > banned_ips.txt
+            echo -e "${GREEN}✓ Banned IPs saved to banned_ips.txt${NC}"
+        else
+            echo -e "${YELLOW}⚠ Fail2Ban service is not running. Starting it to backup IPs...${NC}"
+            sudo systemctl start fail2ban 2>/dev/null || true
+            sleep 1
+            for jail in $(sudo fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:\s*//p' | tr ',' ' '); do
+                echo "[$jail]"
+                sudo fail2ban-client status "$jail" 2>/dev/null | sed -n 's/.*Banned IP list:\s*//p'
+            done > banned_ips.txt
+            echo -e "${GREEN}✓ Banned IPs saved to banned_ips.txt${NC}"
+        fi
+
+        # Stop fail2ban
+        echo -e "${YELLOW}→ Stopping Fail2Ban service...${NC}"
+        sudo systemctl stop fail2ban 2>/dev/null || true
+
+        # Remove fail2ban
+        echo -e "${YELLOW}→ Removing existing Fail2Ban installation...${NC}"
+        sudo apt remove --purge -y fail2ban
+
+        # Remove custom files
+        echo -e "${YELLOW}→ Removing custom notification files...${NC}"
+        sudo rm -f /usr/local/bin/fail2ban-telegram.sh
+        sudo rm -f /etc/fail2ban/action.d/telegram.conf
+
+        echo -e "${GREEN}✓ Old installation removed. Proceeding with fresh install...${NC}"
+        NEED_RESTORE=true
+    else
+        echo -e "${YELLOW}Installation cancelled by user.${NC}"
+        exit 0
+    fi
+else
+    echo -e "${GREEN}✓ Fresh installation detected${NC}"
+fi
+echo ""
+
+# -------------------------------------------
+# Step 3: Configure server name (hostname or custom)
+# -------------------------------------------
+echo -e "${YELLOW}[3/10] Server name configuration...${NC}"
 
 DEFAULT_HOSTNAME=$(hostname)
 
@@ -65,9 +124,9 @@ echo -e "${GREEN}✓ Server name set to: $SERVER_NAME${NC}"
 echo ""
 
 # -------------------------------------------
-# Step 3: Update package list and install fail2ban
+# Step 4: Update package list and install fail2ban
 # -------------------------------------------
-echo -e "${YELLOW}[3/8] Installing Fail2Ban...${NC}"
+echo -e "${YELLOW}[4/10] Installing Fail2Ban...${NC}"
 
 sudo apt update
 sudo apt install -y fail2ban
@@ -76,9 +135,9 @@ echo -e "${GREEN}✓ Fail2Ban installed${NC}"
 echo ""
 
 # -------------------------------------------
-# Step 4: Copy jail.conf to jail.local
+# Step 5: Copy jail.conf to jail.local
 # -------------------------------------------
-echo -e "${YELLOW}[4/8] Configuring jail.local...${NC}"
+echo -e "${YELLOW}[5/10] Configuring jail.local...${NC}"
 
 if [ -f /etc/fail2ban/jail.local ]; then
     echo -e "${YELLOW}⚠ /etc/fail2ban/jail.local already exists. Creating backup...${NC}"
@@ -91,9 +150,9 @@ echo -e "${GREEN}✓ jail.local created${NC}"
 echo ""
 
 # -------------------------------------------
-# Step 5: Configure jail.local with custom settings
+# Step 6: Configure jail.local with custom settings
 # -------------------------------------------
-echo -e "${YELLOW}[5/8] Applying custom Fail2Ban rules...${NC}"
+echo -e "${YELLOW}[6/10] Applying custom Fail2Ban rules...${NC}"
 
 # Comment out default [sshd] section (header + content, but not the next section header)
 sudo sed -i -e '/^\[sshd\]/,/^\[/{/^\[/!s/^/#/}' -e '/^\[sshd\]/s/^/#/' /etc/fail2ban/jail.local
@@ -130,9 +189,9 @@ echo -e "${GREEN}✓ Custom Fail2Ban rules applied${NC}"
 echo ""
 
 # -------------------------------------------
-# Step 6: Ask for Telegram bot token and chat ID
+# Step 7: Ask for Telegram bot token and chat ID
 # -------------------------------------------
-echo -e "${YELLOW}[6/8] Telegram bot configuration...${NC}"
+echo -e "${YELLOW}[7/10] Telegram bot configuration...${NC}"
 
 read -p "Enter Telegram Bot TOKEN: " TELEGRAM_TOKEN
 while [ -z "$TELEGRAM_TOKEN" ]; do
@@ -150,9 +209,9 @@ echo -e "${GREEN}✓ Telegram credentials received${NC}"
 echo ""
 
 # -------------------------------------------
-# Step 7: Create notification script
+# Step 8: Create notification script
 # -------------------------------------------
-echo -e "${YELLOW}[7/8] Creating Telegram notification script...${NC}"
+echo -e "${YELLOW}[8/10] Creating Telegram notification script...${NC}"
 
 # Determine which hostname to use in the script
 if [ "$SERVER_NAME" = "$DEFAULT_HOSTNAME" ]; then
@@ -184,13 +243,7 @@ else
     STATUS="Разблокирован IP"
 fi
 
-MESSAGE="\$ICON <b>Fail2Ban</b>
-<b>Статус:</b> \$STATUS
-
-🖥 <b>Сервер:</b> <code>\$HOSTNAME</code>
-📦 <b>Jail:</b> <code>\$JAIL</code>
-🌐 <b>IP:</b> <code>\$IP</code>
-🕒 <b>Время:</b> <code>\$DATE</code>"
+MESSAGE="\$ICON <b>Fail2Ban</b>\n<b>Статус:</b> \$STATUS\n\n🖥 <b>Сервер:</b> <code>\$HOSTNAME</code>\n📦 <b>Jail:</b> <code>\$JAIL</code>\n🌐 <b>IP:</b> <code>\$IP</code>\n🕒 <b>Время:</b> <code>\$DATE</code>"
 
 curl -s -X POST "https://api.telegram.org/bot\${TOKEN}/sendMessage" \
     -d chat_id="\${CHAT_ID}" \
@@ -204,9 +257,9 @@ echo -e "${GREEN}✓ Notification script created at /usr/local/bin/fail2ban-tele
 echo ""
 
 # -------------------------------------------
-# Step 8: Create action file
+# Step 9: Create action file
 # -------------------------------------------
-echo -e "${YELLOW}[8/8] Creating Fail2Ban action configuration...${NC}"
+echo -e "${YELLOW}[9/10] Creating Fail2Ban action configuration...${NC}"
 
 sudo tee /etc/fail2ban/action.d/telegram.conf > /dev/null << 'ACTION_CONF'
 [Definition]
@@ -226,12 +279,42 @@ echo ""
 # -------------------------------------------
 echo -e "${YELLOW}Restarting Fail2Ban service...${NC}"
 sudo systemctl restart fail2ban
-
 echo ""
+
+# -------------------------------------------
+# Step 10: Restore banned IPs if this was a reinstall
+# -------------------------------------------
+if [ "$NEED_RESTORE" = true ] && [ -f banned_ips.txt ]; then
+    echo -e "${YELLOW}[10/10] Restoring banned IPs from backup...${NC}"
+
+    while read line; do
+        if [[ "$line" =~ ^\[(.*)\]$ ]]; then
+            jail="${BASH_REMATCH[1]}"
+        elif [[ -n "$line" ]]; then
+            for ip in $line; do
+                echo -e "  Restoring ${CYAN}$ip${NC} → jail ${CYAN}$jail${NC}"
+                sudo fail2ban-client set "$jail" banip "$ip" 2>/dev/null || true
+            done
+        fi
+    done < banned_ips.txt
+
+    # Clean up backup file
+    rm -f banned_ips.txt
+    echo -e "${GREEN}✓ Banned IPs restored and backup file removed${NC}"
+    echo ""
+fi
+
+# -------------------------------------------
+# Complete
+# -------------------------------------------
 echo -e "${GREEN}============================================${NC}"
 echo -e "${GREEN}  Installation complete!${NC}"
 echo -e "${GREEN}============================================${NC}"
 echo ""
+
+if [ "$NEED_RESTORE" = true ]; then
+    echo -e "  Reinstallation:  ${GREEN}✓${NC}"
+fi
 echo -e "  Server name:     ${CYAN}$SERVER_NAME${NC}"
 echo -e "  Fail2Ban:        ${GREEN}✓${NC}"
 echo -e "  Telegram script: ${GREEN}✓${NC}"
