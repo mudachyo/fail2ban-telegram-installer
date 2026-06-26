@@ -243,7 +243,13 @@ else
     STATUS="Разблокирован IP"
 fi
 
-MESSAGE="\$ICON <b>Fail2Ban</b>\n<b>Статус:</b> \$STATUS\n\n🖥 <b>Сервер:</b> <code>\$HOSTNAME</code>\n📦 <b>Jail:</b> <code>\$JAIL</code>\n🌐 <b>IP:</b> <code>\$IP</code>\n🕒 <b>Время:</b> <code>\$DATE</code>"
+MESSAGE="\$ICON <b>Fail2Ban</b>
+<b>Статус:</b> \$STATUS
+
+🖥 <b>Сервер:</b> <code>\$HOSTNAME</code>
+📦 <b>Jail:</b> <code>\$JAIL</code>
+🌐 <b>IP:</b> <code>\$IP</code>
+🕒 <b>Время:</b> <code>\$DATE</code>"
 
 curl -s -X POST "https://api.telegram.org/bot\${TOKEN}/sendMessage" \
     -d chat_id="\${CHAT_ID}" \
