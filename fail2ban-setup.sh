@@ -327,7 +327,7 @@ if [ "$NEED_RESTORE" = true ] && [ -f banned_ips.txt ]; then
         elif [[ -n "$line" ]]; then
             for ip in $line; do
                 echo -e "  Restoring ${CYAN}$ip${NC} → jail ${CYAN}$jail${NC}"
-                sudo fail2ban-client set "$jail" banip "$ip" 2>/dev/null || true
+                sudo fail2ban-client set "$jail" banip "$ip" > /dev/null 2>&1 || true
             done
         fi
     done < banned_ips.txt
